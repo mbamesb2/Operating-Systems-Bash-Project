@@ -1,0 +1,193 @@
+
+#!/bin/bash
+
+trap finish 0 KILL
+
+### clean up function to delete temporary files
+function finish {
+	rm -rf datafile$$
+	rm -rf sortRows
+	rm -rf tempRows
+}
+
+### This block checks for correct syntax, both number and type of arguments
+if [[ "$#" = 0 || "$#" > 2 ]];
+then 
+	echo "Usage: stats {-rows|-cols} [file]"
+	exit 1
+fi
+
+datafile="datafile$$"
+if [ $# = 1 ]
+then
+    cat > $datafile
+elif [ $# = 2 ]
+then
+    datafile=$2
+fi
+
+
+if [ "$#" = 1 ]
+  then
+	if [[ ! $1 = -r* && ! $1 = -c* ]];
+	then
+		echo "Usage: stats {-rows|-cols}"
+		exit 1
+	else
+
+		if [ ! -f $datafile ]
+		then
+			echo File does not exist
+			exit 1
+		fi	
+	fi
+elif [ "$#" = 2 ]
+then
+	
+	if [ ! -f $datafile ]
+	then
+		echo File does not exist
+		exit 1
+	fi
+fi
+
+
+### Beginning of row calculation
+if [[ $1 = -r* ]];
+then
+	sum=0
+	count=0
+	echo Average: Median:
+	while IFS=$'\n' read line 		#reads the file, line by line
+	do
+		for j in $line
+		do
+			sum=$(($sum + $j))
+			array[$count]=$j
+			count=$(($count + 1))
+		done				
+		
+		### Calculate the Average
+		largeSum=$(($sum * 10))
+		divideCount=$(($largeSum / $count))
+		addFive=$(($divideCount + 5))
+		average=$((addFive / 10))	
+
+		### Sort the array into "sorted" array
+		IFS=$'\n\t' sorted=($(sort <<<"${array[*]}"))		
+	
+
+		### Calculate the median, first by determining if odd or even number of elements
+		middle=$(($count / 2))
+		middleTwo=$(($middle + 1))
+		isEven=$(($count%2))
+				
+		if [ $isEven = 0 ]
+		then
+			num1=$((sorted[$middle]))
+			num2=$((sorted[$middleTwo]))
+			if [[ $num1 > $num2 ]]
+			then
+				median=$num1
+			else
+				median=$num2
+			
+			fi
+			
+		else
+			median=$((sorted[$middle + 1]))
+
+		fi
+
+		if [[ $count = 1 ]]
+                then
+                        median=$((sorted[0]))
+                fi
+		
+		echo $average"     " $median
+		
+
+		sum=0
+		count=0
+
+
+	done <$datafile	
+fi
+
+tempRows="tempRows"
+sortRows="sortRows"
+
+## Beginning of column calculation
+if [[ $1 = -c* ]]
+then
+	sum=0
+	count=0
+	cutNum=1
+	numOfCols=$(head -n 1 $datafile | wc -w) 	##Determine number of columns in the file	
+	
+
+	for (( j=0; j < numOfCols; j++ ));
+	do	
+		cut -f $cutNum $datafile > tempRows	##Cuts the file by field
+		cutNum=$(($cutNum+1))
+			
+		sort tempRows > sortRows		##Sorts the file
+ 		
+		while read line;
+		do
+			sum=$(($sum+$line))
+                        array[$count]=$line
+                        count=$(($count + 1))		
+       		done < $sortRows
+
+                ### Calculate the Average
+                largeSum=$(($sum * 10))
+                divideCount=$(($largeSum / $count))
+                addFive=$(($divideCount + 5))
+                average=$((addFive / 10))
+		avgArray[$j]=$average
+		
+		### Calculate the median
+                middle=$(($count / 2))
+                middleTwo=$(($middle + 1))
+                isEven=$(($count%2))
+				
+                if [ $isEven = 0 ]
+                then
+                    	num1=$((array[$middle - 1]))
+                        num2=$((array[$middleTwo - 1]))
+	
+                        if [[ $num1 > $num2 ]]
+                        then
+                            	median=$num1
+			
+                        else
+                            	median=$num2
+				
+                        fi
+                else
+                    	median=$((array[$middleTwo]))
+
+                fi
+		if [[ $count = 1 ]]
+                then
+                        median=$((array[0]))
+                fi		
+
+		medArray[$j]=$median
+		count=0
+		sum=0
+	done 
+	
+	echo Average:
+	echo ${avgArray[@]}
+	echo Median:
+	echo ${medArray[@]}
+fi
+
+## Final syntax catchall
+if [[ ! $1 = -r* && ! $1 = -c* ]]
+then
+       	echo "Usage: stats {-rows|-cols}"
+       	exit 1
+fi
